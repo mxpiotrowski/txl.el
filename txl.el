@@ -125,11 +125,11 @@ ES (Spanish), JA (Japanese) and ZH (Chinese)."
   "The authentication key used to access the translation API."
   :type 'string)
 
-(defun txl-get-supported-languages-internal ()
-       "Query DeepL server for known target languages.
+;; [TODO] Option to get target or source languages, see
+;; <https://www.deepl.com/docs-api/general/get-languages/>
 
-[TODO] Option to get target or source languages.
-See <https://www.deepl.com/docs-api/general/get-languages/>"
+(defun txl-get-supported-languages-internal ()
+  "Query DeepL server for known target languages."
   (let* ((request-backend 'url-retrieve)
          (response (request
                      "https://api.deepl.com/v2/languages"
@@ -278,13 +278,6 @@ written, i.e. the target language of a translation."
       (cdr txl-languages)
     (car txl-languages)))
 
-(defun txl-replace-region-or-paragraph (string)
-  "Replace region or paragraph with STRING."
-  (let ((beginning (txl-beginning)))
-    (goto-char (txl-beginning))
-    (delete-region beginning (txl-end))
-    (insert string)))
-
 ;;;###autoload
 (defun txl-translate-region-or-paragraph (&optional prefix-arg)
   "Translate the region or paragraph and display result in a separate buffer.
@@ -320,10 +313,12 @@ translation can be dismissed via C-c C-k."
 (defun txl-accept-translation ()
   "Hide buffer for reviewing and editing, replace original text with translation."
   (interactive)
-  (let ((translation (buffer-string)))
-    (txl-dismiss-translation)
-    (with-current-buffer txl-source-buffer
-      (txl-replace-region-or-paragraph translation))))
+
+  (with-current-buffer txl-source-buffer
+    (replace-region-contents
+     (txl-beginning) (txl-end)
+     (lambda () (get-buffer txl-translation-buffer-name))))
+  (txl-dismiss-translation))
 
 (defun txl-dismiss-translation ()
   "Hide buffer for reviewing and editing translation."
