@@ -125,6 +125,61 @@ ES (Spanish), JA (Japanese) and ZH (Chinese)."
   "The authentication key used to access the translation API."
   :type 'string)
 
+(defun txl-get-supported-languages-internal ()
+       "Query DeepL server for known target languages.
+
+[TODO] Option to get target or source languages.
+See <https://www.deepl.com/docs-api/general/get-languages/>"
+  (let* ((request-backend 'url-retrieve)
+         (response (request
+                     "https://api.deepl.com/v2/languages"
+                     :type "POST"
+                     :sync t
+                     :parser 'json-read
+                     :data `(("auth_key" . ,txl-deepl-api-key)
+                             ("type" . "target")))))
+    (pcase (request-response-status-code response)
+      (200
+       (let* ((data (request-response-data response)))
+         data))
+      (400 (error "Bad request.  Please check error message and your parameters"))
+      (403 (error "Authorization failed.  Please supply a valid auth_key parameter"))
+      (404 (error "The requested resource could not be found"))
+      (413 (error "The request size exceeds the limit"))
+      (429 (error "Too many requests.  Please wait and resend your request"))
+      (456 (error "Quota exceeded.  The character limit has been reached"))
+      (503 (error "Resource currently unavailable.  Try again later"))
+      (_   (error "Internal error")))))
+
+(defun txl-get-supported-languages ()
+  "Return an alist containing the names and codes of supported languages.
+
+This is a wrapper for `txl-get-supported-languages-internal' that returns
+a subset of the information in a form suitable for `completing-read-multiple'."
+  (map 'list (lambda (item)
+               (list (alist-get 'name item)
+                     (make-symbol (alist-get 'language item))))
+       (txl-get-supported-languages-internal)))
+
+(defun txl-set-languages (lang1 lang2)
+  "Set the two languages between which DeepL will translate (`txl-languages').
+
+Note that the order doesn't imply any translation direction.
+`txl-translate-string' automatically sets the target language on
+the basis of the detected language of the source text, and DeepL
+automatically identifies the source language, if it isn't
+specified in the request."
+  (interactive
+   (let ((completion-ignore-case t))
+     (completing-read-multiple "Languages: " (txl-get-supported-languages))))
+
+  (let ((codes
+         (mapcar
+          (lambda (item)
+            (cadr (assoc item (txl-get-supported-languages))))
+          (list lang1 lang2))))
+    (setq txl-languages (cons (car codes) (cadr codes)))))
+
 (defun txl-translate-string (text target-lang &rest more-target-langs)
   "Translate TEXT to TARGET-LANG.
 
