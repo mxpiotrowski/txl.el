@@ -58,6 +58,16 @@ Will be restored when the buffer for reviewing the translation is closed.")
 (defvar txl-highlight-overlay nil
   "Overlay variable for highlighting the source region for translation.")
 
+(defvar txl-deepl-formality-options
+  '(("Default" . default)
+    ("More formal language if available" . prefer_more)
+    ("Less formal language if available" . prefer_less))
+  "Possible values for the DeepL 'formality' parameter.
+
+DeepL also supports the options 'more' and 'less', but they are not
+supported for all target languages, and we don't know which of the
+languages in `txl-languages' will be the target language.")
+
 (defgroup txl nil
   "Use online machine translation services."
   :group 'text)
@@ -118,15 +128,13 @@ Upper/lower case at the beginning of the sentence."
 (defcustom txl-deepl-formality 'default
   "Whether the translated text should lean towards formal or informal language.
 
-This feature currently works for all target languages except
-EN (English), EN-GB (British English), EN-US (American English),
-ES (Spanish), JA (Japanese) and ZH (Chinese)."
+This feature currently only works for target languages DE (German),
+FR (French), IT (Italian), ES (Spanish), NL (Dutch), PL (Polish),
+PT-PT, PT-BR (Portuguese) and RU (Russian).  Otherwise the setting has no effect."
   :local t
-  :type '(choice (const :tag "Default" default)
-                 (const :tag "More formal language" more)
-                 (const :tag "Less formal language" less)
-                 (const :tag "More formal language if available, otherwise fallback to default formality" prefer_more)
-                 (const :tag "Less formal language if available, otherwise fallback to default formality" prefer_less)))
+  :type `(choice ,@(mapcar (lambda (option)
+                             `(const :tag ,(car option) ,(cdr option)))
+                           txl-deepl-formality-options)))
 
 (defcustom txl-deepl-api-key ""
   "The authentication key used to access the translation API."
@@ -190,6 +198,25 @@ specified in the request."
             (cadr (assoc item (txl-get-supported-languages))))
           (list lang1 lang2))))
     (setq txl-languages (cons (car codes) (cadr codes)))))
+
+(defun txl-set-deepl-formality (formality)
+  "Set whether the translated text should lean towards formal or informal language.
+
+This function sets the value of `txl-deepl-formality'."
+  (interactive
+   (let ((completion-ignore-case t))
+     (list
+      (cdr (assoc
+             (completing-read "Formality: " txl-deepl-formality-options
+                              nil t nil nil
+;                                       '("Default")
+                              (list (car (rassq (default-value 'txl-deepl-formality)
+                                                txl-deepl-formality-options)))
+
+                              )
+             txl-deepl-formality-options)))))
+
+   (setq txl-deepl-formality formality))
 
 (defun txl-translate-string (text target-lang &rest more-target-langs)
   "Translate TEXT to TARGET-LANG.
