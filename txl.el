@@ -55,6 +55,9 @@
 
 Will be restored when the buffer for reviewing the translation is closed.")
 
+(defvar txl-highlight-overlay nil
+  "Overlay variable for highlighting the source region for translation.")
+
 (defgroup txl nil
   "Use online machine translation services."
   :group 'text)
@@ -128,6 +131,10 @@ ES (Spanish), JA (Japanese) and ZH (Chinese)."
 (defcustom txl-deepl-api-key ""
   "The authentication key used to access the translation API."
   :type 'string)
+
+(defcustom txl-highlight-face 'highlight
+  "Face used for txl highlighting."
+  :type 'face)
 
 ;; [TODO] Option to get target or source languages, see
 ;; <https://www.deepl.com/docs-api/general/get-languages/>
@@ -261,6 +268,8 @@ If MORE-TARGET-LANGS is non-nil, translation will be applied
 recursively for all languages in MORE-TARGET-LANGS.  This allows,
 for example, to translate to another language and back in one
 go."
+  (setq txl-highlight-overlay (make-overlay (txl-beginning) (txl-end)))
+  (overlay-put txl-highlight-overlay 'face txl-highlight-face)
   (let ((text (buffer-substring-no-properties (txl-beginning) (txl-end))))
     (apply 'txl-translate-string text target-lang more-target-langs)))
 
@@ -319,6 +328,7 @@ translation can be dismissed via C-c C-k."
   (interactive)
 
   (with-current-buffer txl-source-buffer
+    ;; It doesn't seem necessary to explicitly delete the overlay here
     (replace-region-contents
      (txl-beginning) (txl-end)
      (lambda () (get-buffer txl-translation-buffer-name))))
@@ -327,6 +337,8 @@ translation can be dismissed via C-c C-k."
 (defun txl-dismiss-translation ()
   "Hide buffer for reviewing and editing translation."
   (interactive)
+  (when txl-highlight-overlay
+      (delete-overlay txl-highlight-overlay))
   (setq-local header-line-format nil)
   (set-window-configuration txl-original-window-configuration))
 
