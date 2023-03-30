@@ -66,6 +66,7 @@ Will be restored when the buffer for reviewing the translation is closed.")
 
 (defcustom txl-languages '(DE . EN-US)
   "The two languages between which DeepL will translate."
+  :local t
   :type '(cons
           (choice
            (const :tag "German" DE)
@@ -117,6 +118,7 @@ Upper/lower case at the beginning of the sentence."
 This feature currently works for all target languages except
 EN (English), EN-GB (British English), EN-US (American English),
 ES (Spanish), JA (Japanese) and ZH (Chinese)."
+  :local t
   :type '(choice (const :tag "Default" default)
                  (const :tag "More formal language" more)
                  (const :tag "Less formal language" less)
