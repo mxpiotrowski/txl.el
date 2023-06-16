@@ -140,9 +140,39 @@ PT-PT, PT-BR (Portuguese) and RU (Russian).  Otherwise the setting has no effect
   "The authentication key used to access the translation API."
   :type 'string)
 
-(defcustom txl-highlight-face 'highlight
-  "Face used for txl highlighting."
-  :type 'face)
+(defface txl-highlight-face
+  '((default . (:inherit highlight)))
+  "Face for highlighting the translation source text.")
+
+;;;
+(defun txl-handle-request-error (http-status-code response)
+  ;; (error "Request failed with status code %s" (request-response-status-code response))
+  (pcase http-status-code
+    (400 (error "Bad request.  Please check error message and your parameters"))
+    (403 (error "Authorization failed.  Please supply a valid auth_key parameter"))
+    (404 (error "The requested resource could not be found"))
+    (413 (error "The request size exceeds the limit"))
+    (429 (error "Too many requests.  Please wait and resend your request"))
+    (456 (error "Quota exceeded.  The character limit has been reached"))
+    (503 (error "Resource currently unavailable.  Try again later"))
+    (_   (error "Internal error")))
+  )
+
+(defun txl-get-usage ()
+  "[TODO]"
+  (let* ((request-backend 'url-retrieve)
+	 (response (request "https://api.deepl.com/v2/usage"
+                     :type "POST"
+	             :sync t
+	             :data `(("auth_key" . ,txl-deepl-api-key)
+                             ("type" . "target"))
+                     :error (cl-function
+                             (lambda (&key response &allow-other-keys)
+                               (txl-handle-request-error
+                                (request-response-status-code response) response)))
+	             :parser 'json-read)))
+    (request-response-data response)))
+
 
 ;; [TODO] Option to get target or source languages, see
 ;; <https://www.deepl.com/docs-api/general/get-languages/>
@@ -154,21 +184,14 @@ PT-PT, PT-BR (Portuguese) and RU (Russian).  Otherwise the setting has no effect
                      "https://api.deepl.com/v2/languages"
                      :type "POST"
                      :sync t
-                     :parser 'json-read
                      :data `(("auth_key" . ,txl-deepl-api-key)
-                             ("type" . "target")))))
-    (pcase (request-response-status-code response)
-      (200
-       (let* ((data (request-response-data response)))
-         data))
-      (400 (error "Bad request.  Please check error message and your parameters"))
-      (403 (error "Authorization failed.  Please supply a valid auth_key parameter"))
-      (404 (error "The requested resource could not be found"))
-      (413 (error "The request size exceeds the limit"))
-      (429 (error "Too many requests.  Please wait and resend your request"))
-      (456 (error "Quota exceeded.  The character limit has been reached"))
-      (503 (error "Resource currently unavailable.  Try again later"))
-      (_   (error "Internal error")))))
+                             ("type" . "target"))
+                     :error (cl-function
+                             (lambda (&key response &allow-other-keys)
+                               (txl-handle-request-error
+                                (request-response-status-code response) response)))
+                     :parser 'json-read)))
+    (request-response-data response)))
 
 (defun txl-get-supported-languages ()
   "Return an alist containing the names and codes of supported languages.
@@ -240,24 +263,18 @@ go."
                              ("preserve_formatting" . ,(if txl-deepl-preserve-formatting "1" "0"))
                              ("formality"           . ,(symbol-name txl-deepl-formality))
                              ("text"                . ,text)
-                             ("target_lang"         . ,target-lang)))))
-    (pcase (request-response-status-code response)
-      (200
-       (let* ((data (request-response-data response))
-              (translations (cdr (assoc 'translations data)))
-              (translation (cdr (assoc 'text (aref translations 0))))
-              (translation (decode-coding-string (encode-coding-string translation 'latin-1) 'utf-8)))
-         (if more-target-langs
-             (apply 'txl-translate-string translation (car more-target-langs) (cdr more-target-langs))
-           translation)))
-      (400 (error "Bad request.  Please check error message and your parameters"))
-      (403 (error "Authorization failed.  Please supply a valid auth_key parameter"))
-      (404 (error "The requested resource could not be found"))
-      (413 (error "The request size exceeds the limit"))
-      (429 (error "Too many requests.  Please wait and resend your request"))
-      (456 (error "Quota exceeded.  The character limit has been reached"))
-      (503 (error "Resource currently unavailable.  Try again later"))
-      (_   (error "Internal error")))))
+                             ("target_lang"         . ,target-lang))
+                     :error (cl-function
+                             (lambda (&key response &allow-other-keys)
+                               (txl-handle-request-error
+                                (request-response-status-code response) response))))))
+    (let* ((data (request-response-data response))
+           (translations (cdr (assoc 'translations data)))
+           (translation (cdr (assoc 'text (aref translations 0))))
+           (translation (decode-coding-string (encode-coding-string translation 'latin-1) 'utf-8)))
+      (if more-target-langs
+          (apply 'txl-translate-string translation (car more-target-langs) (cdr more-target-langs))
+        translation))))
 
 (defun txl-beginning ()
   "Return beginning of region or, if inactive, paragraph."
@@ -296,7 +313,7 @@ recursively for all languages in MORE-TARGET-LANGS.  This allows,
 for example, to translate to another language and back in one
 go."
   (setq txl-highlight-overlay (make-overlay (txl-beginning) (txl-end)))
-  (overlay-put txl-highlight-overlay 'face txl-highlight-face)
+  (overlay-put txl-highlight-overlay 'face 'txl-highlight-face)
   (let ((text (buffer-substring-no-properties (txl-beginning) (txl-end))))
     (apply 'txl-translate-string text target-lang more-target-langs)))
 
