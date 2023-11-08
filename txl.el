@@ -312,6 +312,7 @@ If MORE-TARGET-LANGS is non-nil, translation will be applied
 recursively for all languages in MORE-TARGET-LANGS.  This allows,
 for example, to translate to another language and back in one
 go."
+  ;; [TODO] Delete overlay in case of error (e.g., no Internet)
   (setq txl-highlight-overlay (make-overlay (txl-beginning) (txl-end)))
   (overlay-put txl-highlight-overlay 'face 'txl-highlight-face)
   (let ((text (buffer-substring-no-properties (txl-beginning) (txl-end))))
