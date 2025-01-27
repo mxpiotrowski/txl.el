@@ -1,4 +1,4 @@
-;;; txl.el --- Provides machine translation via DeepL's REST API
+;;; txl.el --- Provides machine translation via DeepL's REST API -*- lexical-binding: t -*-
 
 ;; Author: Titus von der Malsburg <malsburg@posteo.de>
 ;; Maintainer: Titus von der Malsburg <malsburg@posteo.de>
@@ -42,6 +42,7 @@
 ;;; Code:
 
 (require 'request)
+(require 'org)
 (require 'guess-language)
 
 (defconst txl-translation-buffer-name "*TXL translation result*"
@@ -111,10 +112,10 @@ languages in `txl-languages' will be the target language.")
            (const :tag "Chinese" ZH))))
 
 (defcustom txl-deepl-split-sentences 'nonewlines
-  "Whether the translation engine splits input into sentences which are translated individually."
+  "Whether to input into sentences which are translated individually."
   :type '(choice (const :tag "No splitting" nil)
                  (const :tag "Split on interpunction and on newlines" t)
-                 (const :tag "Split on interpunction only, ignoring newlines " 'nonewlines)))
+                 (const :tag "Split on interpunction only, ignoring newlines " nonewlines)))
 
 (defcustom txl-deepl-preserve-formatting t
   "Whether the translation engine should respect the original formatting.
@@ -128,13 +129,12 @@ Upper/lower case at the beginning of the sentence."
 (defcustom txl-deepl-formality 'default
   "Whether the translated text should lean towards formal or informal language.
 
-This feature currently only works for target languages DE (German),
-FR (French), IT (Italian), ES (Spanish), NL (Dutch), PL (Polish),
-PT-PT, PT-BR (Portuguese) and RU (Russian).  Otherwise the setting has no effect."
-  :local t
-  :type `(choice ,@(mapcar (lambda (option)
-                             `(const :tag ,(car option) ,(cdr option)))
-                           txl-deepl-formality-options)))
+This feature currently works for all target languages except
+EN (English), EN-GB (British English), EN-US (American English),
+ES (Spanish), JA (Japanese) and ZH (Chinese)."
+  :type '(choice (const :tag "Default" default)
+                 (const :tag "More formal language" more)
+                 (const :tag "Less formal language" less)))
 
 (defcustom txl-deepl-api-key ""
   "The authentication key used to access the translation API."
@@ -306,7 +306,7 @@ go."
       (min (point-max) (1+ (point))))))
 
 (defun txl-translate (target-lang &rest more-target-langs)
-  "Translate the region or paragraph to TARGET-LANG and return translation as string.
+  "Translate region or paragraph to TARGET-LANG and return translation.
 
 If MORE-TARGET-LANGS is non-nil, translation will be applied
 recursively for all languages in MORE-TARGET-LANGS.  This allows,
@@ -316,7 +316,7 @@ go."
   (setq txl-highlight-overlay (make-overlay (txl-beginning) (txl-end)))
   (overlay-put txl-highlight-overlay 'face 'txl-highlight-face)
   (let ((text (buffer-substring-no-properties (txl-beginning) (txl-end))))
-    (apply 'txl-translate-string text target-lang more-target-langs)))
+    (apply #'txl-translate-string text target-lang more-target-langs)))
 
 (defun txl-guess-language ()
   "Guess the language of the region or paragraph."
@@ -337,24 +337,25 @@ written, i.e. the target language of a translation."
     (car txl-languages)))
 
 ;;;###autoload
-(defun txl-translate-region-or-paragraph (&optional prefix-arg)
+(defun txl-translate-region-or-paragraph (&optional roundtrip)
   "Translate the region or paragraph and display result in a separate buffer.
 
 By default the text is translated to the other language specified
-in `txl-languages'.  If PREFIX-ARG is non-nil, the text is
+in `txl-languages'.  If ROUNDTRIP is non-nil, the text is
 translated to the other language and back.
 
 The translation is displayed in a separate buffer.  There it can
 be edited there and, if desired, the original text can be
-replaced with the (edited) translation using C-c C-c.  The
-translation can be dismissed via C-c C-k."
+replaced with the (edited) translation using
+\\<txl-edit-translation-mode-map> \\[txl-accept-translation].  The
+translation can be dismissed via \\[txl-dismiss-translation]."
   (interactive "P")
   (setq txl-source-buffer (current-buffer))
   (setq txl-original-window-configuration (current-window-configuration))
-  (let* ((route (if prefix-arg
+  (let* ((route (if roundtrip
                     (list (txl-other-language) (txl-guess-language))
                   (list (txl-other-language))))
-         (translation (apply 'txl-translate route)))
+         (translation (apply #'txl-translate route)))
     (with-current-buffer (get-buffer-create txl-translation-buffer-name)
       (unless (derived-mode-p 'text-mode)
         (text-mode))
