@@ -149,7 +149,7 @@ ES (Spanish), JA (Japanese) and ZH (Chinese)."
   ;; (error "Request failed with status code %s" (request-response-status-code response))
   (pcase http-status-code
     (400 (error "Bad request.  Please check error message and your parameters"))
-    (403 (error "Authorization failed.  Please supply a valid auth_key parameter"))
+    (403 (error "Authorization failed.  Please supply a valid Authorization header"))
     (404 (error "The requested resource could not be found"))
     (413 (error "The request size exceeds the limit"))
     (429 (error "Too many requests.  Please wait and resend your request"))
@@ -164,8 +164,8 @@ ES (Spanish), JA (Japanese) and ZH (Chinese)."
 	 (response (request "https://api.deepl.com/v2/usage"
                      :type "POST"
 	             :sync t
-	             :data `(("auth_key" . ,txl-deepl-api-key)
-                             ("type" . "target"))
+	             :data `(("type" . "target"))
+                     :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
                      :error (cl-function
                              (lambda (&key response &allow-other-keys)
                                (txl-handle-request-error
@@ -184,8 +184,8 @@ ES (Spanish), JA (Japanese) and ZH (Chinese)."
                      "https://api.deepl.com/v2/languages"
                      :type "POST"
                      :sync t
-                     :data `(("auth_key" . ,txl-deepl-api-key)
-                             ("type" . "target"))
+                     :data `(("type" . "target"))
+                     :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
                      :error (cl-function
                              (lambda (&key response &allow-other-keys)
                                (txl-handle-request-error
@@ -255,8 +255,7 @@ go."
                      :type "POST"
                      :sync t
                      :parser 'json-read
-                     :data `(("auth_key"            . ,txl-deepl-api-key)
-                             ("split_sentences"     . ,(pcase txl-deepl-split-sentences
+                     :data `(("split_sentences"     . ,(pcase txl-deepl-split-sentences
                                                          ((pred not) "0")
                                                          ('nonewlines "nonewlines")
                                                          ((pred (lambda (x) (eq t x))) "1")))
@@ -264,6 +263,7 @@ go."
                              ("formality"           . ,(symbol-name txl-deepl-formality))
                              ("text"                . ,text)
                              ("target_lang"         . ,target-lang))
+                     :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
                      :error (cl-function
                              (lambda (&key response &allow-other-keys)
                                (txl-handle-request-error
