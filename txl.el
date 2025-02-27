@@ -329,6 +329,8 @@ DeepL glossaries always have a direction."
                                     (txl-handle-request-error (request-response-status-code response) response))))
                      ))
          (data (request-response-data response))
+         (source-lang (downcase (substring (symbol-name source-lang) 0 2)))
+         (target-lang (downcase (substring (symbol-name target-lang) 0 2)))
          (id   (cdr (assoc 'glossary_id
                            (seq-find (lambda (elt)
                                        (and
@@ -337,6 +339,7 @@ DeepL glossaries always have a direction."
                                         (string-equal target-lang (cdr (assoc 'target_lang elt)))
                                         ))
                                      (cdr (assoc 'glossaries data)))))))
+    (message "Found glossary `%s' %s → %s: %s" name source-lang target-lang id) ; [DEBUG]
     id))
 
 (defun txl-translate-string (text target-lang &rest more-target-langs)
@@ -348,16 +351,12 @@ If MORE-TARGET-LANGS is non-nil, translation will be applied
 recursively for all languages in MORE-TARGET-LANGS.  This allows,
 for example, to translate to another language and back in one
 go."
-  (message "Requesting translation from %s to %s... " ; [DEBUG]
-           (txl-guess-string-language text) target-lang)
+  (message "Requesting translation from %s to %s... %s" ; [DEBUG]
+           (txl-guess-string-language text) target-lang (symbolp target-lang))
   (let* (
          ;; source_lang MUST be specified when using a glossary, and
          ;; the language ID must be without variant.
          (source-lang (txl-guess-string-language text))
-         ;; It seems that case doesn't matter for language IDs, except
-         ;; when using a glossary, then the case must apparently match
-         ;; exactly.  The documentation is inconsistent.
-         (target-lang (downcase (symbol-name target-lang)))
          (glossary-id (unless (string-empty-p txl-glossary)
                         (txl-glossary-get-id-by-name txl-glossary source-lang target-lang)))
          (request-backend 'url-retrieve)
