@@ -441,6 +441,95 @@ written, i.e. the target language of a translation."
       (cdr txl-languages)
     (car txl-languages)))
 
+;;; DeepL Write
+
+(defun txl-rephrase-string (text &optional target-lang style-or-tone)
+  "Rephrase TEXT in TARGET-LANG.
+
+[TODO] Work in progress, see URL `https://developers.deepl.com/docs/api-reference/improve-text'
+
+Should allow setting writing style or tone (it’s not possible to
+include both writing_style and tone in a request; only one or the
+other can be included.)
+"
+  (message "Requesting rephrasing of text in %s... style-or-tone %s" target-lang style-or-tone)
+  (let* ((request-backend 'url-retrieve)
+         (response (request
+                     "https://api.deepl.com/v2/write/rephrase" ;txl-deepl-api-url
+                     :type "POST"
+                     :sync t
+                     :parser 'json-read
+                     :data `(("text"             . ,text)
+                             ("target_lang"      . ,(or target-lang ""))
+                             ,(txl-style-or-tone style-or-tone)
+                             )
+                     :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
+                     :complete (cl-function
+                                (lambda (&key response &allow-other-keys)
+                                  (unless (eq 200 (request-response-status-code response))
+                                    (txl-handle-request-error (request-response-status-code response) response))))
+                     ))
+         (data (request-response-data response)))
+    (decode-coding-string
+     (encode-coding-string 
+      (cdr (assoc 'text (aref (cdr (assoc 'improvements data)) 0)))
+      'latin-1)
+     'utf-8)))
+
+(defun txl-style-or-tone (val)
+  "Return a pair `(\"writing_style\" . VAL)' or `(\"tone\" . VAL)' depending on
+whether VAL is a valid writing style or tone for the DeepL text
+improvement function.
+
+This function is primarily intended for use by
+`txl-rephrase-string'.
+
+Currently supported values for writing style are `simple',
+`business', `academic', and `casual'.
+
+Currently supported values for tone are `enthusiastic',
+`friendly', `confident', and `diplomatic'.
+
+Since they may not be supported for the current language, prefix
+supported values with `prefer_'.
+
+For all other values, return `(\"style\" . \"default\")'.
+
+See URL `https://developers.deepl.com/docs/api-reference/improve-text'."
+  (let ((val (or val ""))
+        (styles (regexp-opt '("simple" "business" "academic" "casual") t))
+        (tones (regexp-opt '("enthusiastic" "friendly" "confident" "diplomatic") t)))
+
+    (cond ((string-match styles val) `("writing_style" . ,(concat "prefer_" (match-string 1 val))))
+          ((string-match tones val) `("tone" . ,(concat "prefer_" (match-string 1 val))))
+          (t '("style" . "default")))))
+
+(defun txl-rephrase-region-or-paragraph (&optional prefix)
+  "[TODO]
+
+This is a hacked version of `txl-translate-region-or-paragraph'
+for testing.  It currently directly calls `txl-rephrase-string',
+without a function in between that does the highlighting.
+There's also no way to specify the writing style or tone.
+"
+  (interactive "P")
+  (setq txl-source-buffer (current-buffer))
+  (setq txl-original-window-configuration (current-window-configuration))
+  (let* ((translation (txl-rephrase-string (buffer-substring-no-properties (txl-beginning) (txl-end))))
+         )
+    (with-current-buffer (get-buffer-create txl-translation-buffer-name)
+      (unless (derived-mode-p 'text-mode)
+        (text-mode))
+      (erase-buffer)
+      (insert translation)
+      (txl-edit-translation-mode)
+      (goto-char (point-min))))
+  (display-buffer txl-translation-buffer-name
+                  '((display-buffer-below-selected display-buffer-at-bottom)
+                    (inhibit-same-window . t)
+                    (window-height . fit-window-to-buffer)))
+  (select-window (get-buffer-window txl-translation-buffer-name)))
+
 ;;;###autoload
 (defun txl-translate-region-or-paragraph (&optional roundtrip)
   "Translate the region or paragraph and display result in a separate buffer.
