@@ -132,6 +132,7 @@ Upper/lower case at the beginning of the sentence."
 This feature currently works for all target languages except
 EN (English), EN-GB (British English), EN-US (American English),
 ES (Spanish), JA (Japanese) and ZH (Chinese)."
+  :local t
   :type '(choice (const :tag "Default" default)
                  (const :tag "More formal language" more)
                  (const :tag "Less formal language" less)))
