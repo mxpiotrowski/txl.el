@@ -69,6 +69,13 @@ DeepL also supports the options 'more' and 'less', but they are not
 supported for all target languages, and we don't know which of the
 languages in `txl-languages' will be the target language.")
 
+(defvar txl-deepl-model-options
+  '(("Latency" . nil)
+    ("Quality" . quality_optimized)
+    ("Prefer latency" . prefer_latency_optimized)
+    ("Prefer quality" . prefer_quality_optimized))
+  "Possible values for the DeepL `model_type' parameter.")
+
 (defvar-local txl-glossary ""
   "Name of a DeepL glossary to be used for translations.
 
@@ -143,6 +150,14 @@ ES (Spanish), JA (Japanese) and ZH (Chinese)."
   :type '(choice (const :tag "Default" default)
                  (const :tag "More formal language" more)
                  (const :tag "Less formal language" less)))
+
+(defcustom txl-deepl-model nil
+  "Specifies which DeepL model should be used for translation."
+  :local t
+  :type '(choice (const :tag "latency_optimized" nil)
+                 (const :tag "quality_optimized" quality_optimized)
+                 (const :tag "prefer_latency_optimized" prefer_latency_optimized)
+                 (const :tag "prefer_quality_optimized" prefer_quality_optimized)))
 
 (defcustom txl-deepl-api-key ""
   "The authentication key used to access the translation API."
@@ -247,6 +262,20 @@ This function sets the value of `txl-deepl-formality'."
              txl-deepl-formality-options)))))
   (setq txl-deepl-formality formality))
 
+(defun txl-set-deepl-model (model)
+  "Specify which DeepL model should be used for translation.
+
+This function sets the value of `txl-deepl-model'."
+  (interactive
+   (let ((completion-ignore-case t))
+     (list
+      (cdr (assoc
+            (completing-read "Model type: " txl-deepl-model-options nil t nil nil
+                             (list (car (rassq (default-value 'txl-deepl-model)
+                                               txl-deepl-model-options))))
+            txl-deepl-model-options)))))
+  (setq-local txl-deepl-model model))
+
 (defun txl-set-glossary (name)
   "Set a glossary to be used for translations.
 
@@ -349,6 +378,8 @@ go."
                            ,(if glossary-id
                                 `("glossary_id"   . ,glossary-id))
                            ("source_lang"         . ,source-lang) ; optional unless we're using a glossary
+                           ,(if txl-deepl-model
+                                `("model_type"    . ,txl-deepl-model))
                            )
                    :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
                    :complete (cl-function
