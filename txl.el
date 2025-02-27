@@ -364,7 +364,7 @@ go."
            (translation (decode-coding-string (encode-coding-string translation 'latin-1) 'utf-8))
            )
       (if more-target-langs
-          (apply #'txl-translate-string-with-glossary
+          (apply #'txl-translate-string
                  translation (car more-target-langs) (cdr more-target-langs))
         translation))))
 
