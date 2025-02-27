@@ -69,6 +69,13 @@ DeepL also supports the options 'more' and 'less', but they are not
 supported for all target languages, and we don't know which of the
 languages in `txl-languages' will be the target language.")
 
+(defvar-local txl-glossary ""
+  "Name of a DeepL glossary to be used for translations.
+
+When translating, we try to find a glossary with this name for
+the requested language pair.  If no matching glossary can be
+found, no glossary will be used.")
+
 (defgroup txl nil
   "Use online machine translation services."
   :group 'text)
@@ -190,10 +197,10 @@ This function is currently not used by any other function."
                      :sync t
                      :data `(("type" . "target"))
                      :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
-                     :error (cl-function
-                             (lambda (&key response &allow-other-keys)
-                               (txl-handle-request-error
-                                (request-response-status-code response) response)))
+                     :complete (cl-function
+                                (lambda (&key response &allow-other-keys)
+                                  (unless (eq 200 (request-response-status-code response))
+                                    (txl-handle-request-error (request-response-status-code response) response))))
                      :parser 'json-read)))
     (request-response-data response)))
 
@@ -234,50 +241,131 @@ This function sets the value of `txl-deepl-formality'."
    (let ((completion-ignore-case t))
      (list
       (cdr (assoc
-             (completing-read "Formality: " txl-deepl-formality-options
-                              nil t nil nil
-;                                       '("Default")
+             (completing-read "Formality: " txl-deepl-formality-options nil t nil nil
                               (list (car (rassq (default-value 'txl-deepl-formality)
-                                                txl-deepl-formality-options)))
-
-                              )
+                                                txl-deepl-formality-options))))
              txl-deepl-formality-options)))))
+  (setq txl-deepl-formality formality))
 
-   (setq txl-deepl-formality formality))
+(defun txl-set-glossary (name)
+  "Set a glossary to be used for translations.
+
+This function queries the DeepL server, and only names known to
+the server can be selected.  However, whether a glossary of this
+name is available for a specific language pair is only checked at
+translation time.
+
+This function sets the value of `txl-glossary'."
+  (interactive
+   (let ((completion-ignore-case t))
+     (list
+     (completing-read "Glossary: " (txl-glossary-get-unique-names)))))
+  (setq txl-glossary name))
+
+(defun txl-glossary-get-unique-names ()
+  "Return a list of all glossary names known to DeepL."
+  (let* ((request-backend 'url-retrieve)
+         (response (request
+                     "https://api.deepl.com/v2/glossaries" ;txl-deepl-api-url
+                     :type "GET"
+                     :sync t
+                     :parser 'json-read
+                     :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
+                     :complete (cl-function
+                                (lambda (&key response &allow-other-keys)
+                                  (unless (eq 200 (request-response-status-code response))
+                                    (txl-handle-request-error (request-response-status-code response) response))))
+                     ))
+         (data (request-response-data response)))
+
+    (seq-uniq (seq-map (lambda (elt) (cdr (assoc 'name elt)))
+             (cdr (assoc 'glossaries data))))))
+
+(defun txl-glossary-get-id-by-name (name source-lang target-lang)
+  "Return the ID of a glossary matching NAME, SOURCE-LANG, and TARGET-LANG.
+
+Otherwise return nil.
+
+DeepL glossaries always have a direction."
+  (let* ((request-backend 'url-retrieve)
+         (response (request
+                     "https://api.deepl.com/v2/glossaries" ;txl-deepl-api-url
+                     :type "GET"
+                     :sync t
+                     :parser 'json-read
+                     :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
+                     :complete (cl-function
+                                (lambda (&key response &allow-other-keys)
+                                  (unless (eq 200 (request-response-status-code response))
+                                    (txl-handle-request-error (request-response-status-code response) response))))
+                     ))
+         (data (request-response-data response))
+         (id   (cdr (assoc 'glossary_id
+                           (seq-find (lambda (elt)
+                                       (and
+                                        (string-equal name (cdr (assoc 'name elt)))
+                                        (string-equal source-lang (cdr (assoc 'source_lang elt)))
+                                        (string-equal target-lang (cdr (assoc 'target_lang elt)))
+                                        ))
+                                     (cdr (assoc 'glossaries data)))))))
+    id))
 
 (defun txl-translate-string (text target-lang &rest more-target-langs)
   "Translate TEXT to TARGET-LANG.
+
+If `txl-glossary' is set, this function will attempt to use a glossary.
 
 If MORE-TARGET-LANGS is non-nil, translation will be applied
 recursively for all languages in MORE-TARGET-LANGS.  This allows,
 for example, to translate to another language and back in one
 go."
-  (message "Requesting translation from %s to %s ... " (if (eq target-lang (car txl-languages)) (cdr txl-languages) (car txl-languages)) target-lang)
-  (let* ((request-backend 'url-retrieve)
+  (message "Requesting translation from %s to %s... " ; [DEBUG]
+           (txl-guess-string-language text) target-lang)
+  (let* (
+         ;; source_lang MUST be specified when using a glossary, and
+         ;; the language ID must be without variant.
+         (source-lang (txl-guess-string-language text))
+         ;; It seems that case doesn't matter for language IDs, except
+         ;; when using a glossary, then the case must apparently match
+         ;; exactly.  The documentation is inconsistent.
+         (target-lang (downcase (symbol-name target-lang)))
+         (glossary-id (unless (string-empty-p txl-glossary)
+                        (txl-glossary-get-id-by-name txl-glossary source-lang target-lang)))
+         (request-backend 'url-retrieve)
          (response (request
-                     txl-deepl-api-url
-                     :type "POST"
-                     :sync t
-                     :parser 'json-read
-                     :data `(("split_sentences"     . ,(pcase txl-deepl-split-sentences
-                                                         ((pred not) "0")
-                                                         ('nonewlines "nonewlines")
-                                                         ((pred (lambda (x) (eq t x))) "1")))
-                             ("preserve_formatting" . ,(if txl-deepl-preserve-formatting "1" "0"))
-                             ("formality"           . ,(symbol-name txl-deepl-formality))
-                             ("text"                . ,text)
-                             ("target_lang"         . ,target-lang))
-                     :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
-                     :error (cl-function
-                             (lambda (&key response &allow-other-keys)
-                               (txl-handle-request-error
-                                (request-response-status-code response) response))))))
+                   txl-deepl-api-url
+                   :type "POST"
+                   :sync t
+                   :parser 'json-read
+                   :encoding 'utf-8
+                   :data `(("split_sentences"     . ,(pcase txl-deepl-split-sentences
+                                                       ((pred not) "0")
+                                                       ('nonewlines "nonewlines")
+                                                       ((pred (lambda (x) (eq t x))) "1")))
+                           ("preserve_formatting" . ,(if txl-deepl-preserve-formatting "1" "0"))
+                           ("formality"           . ,(symbol-name txl-deepl-formality))
+                           ("text"                . ,text)
+                           ("target_lang"         . ,target-lang)
+                           ,(if glossary-id
+                                `("glossary_id"   . ,glossary-id))
+                           ("source_lang"         . ,source-lang) ; optional unless we're using a glossary
+                           )
+                   :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
+                   :complete (cl-function
+                              (lambda (&key response &allow-other-keys)
+                                (unless (eq 200 (request-response-status-code response))
+                                  (txl-handle-request-error (request-response-status-code response) response))))
+                   ))
+         (data (request-response-data response))
+         )
     (let* ((data (request-response-data response))
            (translations (cdr (assoc 'translations data)))
            (translation (cdr (assoc 'text (aref translations 0))))
-           (translation (decode-coding-string (encode-coding-string translation 'latin-1) 'utf-8)))
+           (translation (decode-coding-string (encode-coding-string translation 'latin-1) 'utf-8))
+           )
       (if more-target-langs
-          (apply 'txl-translate-string translation (car more-target-langs) (cdr more-target-langs))
+          (apply #'txl-translate-string-with-glossary
+                 translation (car more-target-langs) (cdr more-target-langs))
         translation))))
 
 (defun txl-beginning ()
@@ -329,6 +417,19 @@ go."
     (if (string-prefix-p language (symbol-name (car txl-languages)))
         (car txl-languages)
       (cdr txl-languages))))
+
+(defun txl-guess-string-language (string)
+  "Guess the language of STRING.
+
+This function is primarily intended for use with glossaries,
+which requires specifying the source language.  This is also why
+this functions returns the raw language code returned by
+`guess-language-region', unlike `txl-guess-language', which may
+return a variant code (e.g., EN-US)."
+    (with-temp-buffer
+      (insert string)
+      (mark-whole-buffer)
+      (guess-language-region (region-beginning) (region-end))))
 
 (defun txl-other-language ()
   "Return the respective other language of the region or paragraph.
