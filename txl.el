@@ -145,35 +145,38 @@ ES (Spanish), JA (Japanese) and ZH (Chinese)."
   '((default . (:inherit highlight)))
   "Face for highlighting the translation source text.")
 
-;;;
-(defun txl-handle-request-error (http-status-code response)
+;;; Error handling
+(defun txl-handle-request-error (status-code response)
   ;; (error "Request failed with status code %s" (request-response-status-code response))
-  (pcase http-status-code
-    (400 (error "Bad request.  Please check error message and your parameters"))
-    (403 (error "Authorization failed.  Please supply a valid Authorization header"))
-    (404 (error "The requested resource could not be found"))
-    (413 (error "The request size exceeds the limit"))
-    (429 (error "Too many requests.  Please wait and resend your request"))
-    (456 (error "Quota exceeded.  The character limit has been reached"))
-    (503 (error "Resource currently unavailable.  Try again later"))
-    (_   (error "Internal error")))
-  )
+  ;; (message "xxx %d %S" status-code (cdr (assoc 'message (request-response-data response))))
+  (let ((msg (cdr (assoc 'message (request-response-data response)))))
+    (pcase status-code
+      (400 (error "Bad request.  Please check error message and your parameters: %s" msg))
+      (403 (error "Authorization failed.  Please supply a valid Authorization header: %s" msg))
+      (404 (error "The requested resource could not be found: %s" msg))
+      (413 (error "The request size exceeds the limit: %s" msg))
+      (429 (error "Too many requests.  Please wait and resend your request: %s" msg))
+      (456 (error "Quota exceeded.  The character limit has been reached: %s" msg))
+      (503 (error "Resource currently unavailable.  Try again later: %s" msg))
+      (_   (error "Internal error: %s" msg)))
+    ))
 
 (defun txl-get-usage ()
-  "[TODO]"
+  "Query the DeepL server for usage data.
+
+This function is currently not used by any other function."
   (let* ((request-backend 'url-retrieve)
 	 (response (request "https://api.deepl.com/v2/usage"
                      :type "POST"
 	             :sync t
 	             :data `(("type" . "target"))
                      :headers `(("Authorization" . ,(concat "DeepL-Auth-Key " txl-deepl-api-key)))
-                     :error (cl-function
-                             (lambda (&key response &allow-other-keys)
-                               (txl-handle-request-error
-                                (request-response-status-code response) response)))
+                     :complete (cl-function
+                                (lambda (&key response &allow-other-keys)
+                                  (unless (eq 200 (request-response-status-code response))
+                                    (txl-handle-request-error (request-response-status-code response) response))))
 	             :parser 'json-read)))
     (request-response-data response)))
-
 
 ;; [TODO] Option to get target or source languages, see
 ;; <https://www.deepl.com/docs-api/general/get-languages/>
