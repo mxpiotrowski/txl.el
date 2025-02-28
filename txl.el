@@ -560,40 +560,6 @@ There's also no way to specify the writing style or tone.
                     (window-height . fit-window-to-buffer)))
   (select-window (get-buffer-window txl-translation-buffer-name)))
 
-;; Redo (work in progress)
-
-;; The idea is to add functionality to the editing buffer for
-;; "redoing" or "adjusting" a translation or a rephrasing with
-;; different options, e.g., formality or tone, without having having
-;; to quit the buffer.  For example, one could imagine a transient
-;; that allows you to quickly toggle the various options.
-
-;; `txl-redo' is a proof of concept: you can call it in the editing
-;; buffer, and the buffer will be updated with a new translation—which
-;; will of course be identical.  In order to change it, we need to
-;; change options like `txl-deepl-formality'.  However, since these
-;; variables become buffer-local when set, they wont influence the
-;; translation, which takes place in the original buffer (using
-;; `with-current-buffer').  It is possible, however, to set the
-;; variable from the "outside" using `setf' (see
-;; https://emacs.stackexchange.com/questions/32787/).  The new value
-;; remains, so we need to think about whether to revert to the
-;; original value afterwards or not.
-
-;; Also, make sure it can only be run from an editing buffer.
-
-(defun txl-redo ()
-  "[TODO]"
-  (interactive)
-  (mark-whole-buffer)
-  (replace-region-contents (point-min) (point-max)
-                           (lambda ()
-                             (setf (buffer-local-value 'txl-deepl-formality txl-source-buffer) txl-deepl-formality)
-
-                             (with-current-buffer txl-source-buffer
-                               (txl-translate-string
-                                (buffer-substring-no-properties (txl-beginning) (txl-end)) (txl-other-language))))))
-
 ;;;###autoload
 (defun txl-translate-region-or-paragraph (&optional roundtrip)
   "Translate the region or paragraph and display result in a separate buffer.
@@ -651,12 +617,11 @@ translation can be dismissed via \\[txl-dismiss-translation]."
   :keymap (let ((map (make-sparse-keymap)))
             (define-key map (kbd "C-c C-c") 'txl-accept-translation)
             (define-key map (kbd "C-c C-k") 'txl-dismiss-translation)
-            (define-key map (kbd "C-c C-r") 'txl-redo)
             map)
   (setq-local
    header-line-format
    (substitute-command-keys
-    " Accept translation \\[txl-accept-translation], dismiss translation \\[txl-dismiss-translation], redo translation \\[txl-redo]")))
+    " Accept translation \\[txl-accept-translation], dismiss translation \\[txl-dismiss-translation]")))
 
 ;; Define global minor mode.  This is needed to the toggle minor mode.
 ;;;###autoload
