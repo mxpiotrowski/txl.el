@@ -594,6 +594,18 @@ There's also no way to specify the writing style or tone.
                                (txl-translate-string
                                 (buffer-substring-no-properties (txl-beginning) (txl-end)) (txl-other-language))))))
 
+(transient-define-prefix txl-redo-transient ()
+  "[TODO]"
+  [("t" "translate" txl-redo)]
+  [:description
+   (lambda ()
+     (format "Formality: %s" (car (rassoc txl-deepl-formality txl-deepl-formality-options))))
+   ("f" "formality" txl-set-deepl-formality :transient t)]
+  [:description
+   (lambda ()
+     (format "Glossary: %s" txl-glossary))
+   ("g" "glossary" txl-set-glossary :transient t)])
+  
 ;;;###autoload
 (defun txl-translate-region-or-paragraph (&optional roundtrip)
   "Translate the region or paragraph and display result in a separate buffer.
@@ -651,12 +663,12 @@ translation can be dismissed via \\[txl-dismiss-translation]."
   :keymap (let ((map (make-sparse-keymap)))
             (define-key map (kbd "C-c C-c") 'txl-accept-translation)
             (define-key map (kbd "C-c C-k") 'txl-dismiss-translation)
-            (define-key map (kbd "C-c C-r") 'txl-redo)
+            (define-key map (kbd "C-c C-r") 'txl-redo-transient)
             map)
   (setq-local
    header-line-format
    (substitute-command-keys
-    " Accept translation \\[txl-accept-translation], dismiss translation \\[txl-dismiss-translation], redo translation \\[txl-redo]")))
+    " Accept translation \\[txl-accept-translation], dismiss translation \\[txl-dismiss-translation], redo translation \\[txl-redo-transient]")))
 
 ;; Define global minor mode.  This is needed to the toggle minor mode.
 ;;;###autoload
