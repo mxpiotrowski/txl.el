@@ -45,6 +45,8 @@
 (require 'org)
 (require 'guess-language)
 
+(require 'transient)
+
 (defconst txl-translation-buffer-name "*TXL translation result*"
   "Name of the buffer used for reviewing and editing proposed translations.")
 
@@ -594,9 +596,19 @@ There's also no way to specify the writing style or tone.
                                (txl-translate-string
                                 (buffer-substring-no-properties (txl-beginning) (txl-end)) (txl-other-language))))))
 
-(transient-define-prefix txl-redo-transient ()
+(transient-define-prefix txl-transient-menu ()
   "[TODO]"
-  [("t" "translate" txl-redo)]
+  [("t" "translate"
+    (lambda ()
+      (interactive)
+      (if (string-equal (buffer-name) txl-translation-buffer-name)
+       (txl-redo)
+      (txl-translate-region-or-paragraph)
+      ))
+    ;; (lambda ()
+    ;;   (interactive)
+    ;;   (message "Called a suffix"))
+    )]
   [:description
    (lambda ()
      (format "Formality: %s" (car (rassoc txl-deepl-formality txl-deepl-formality-options))))
@@ -663,12 +675,12 @@ translation can be dismissed via \\[txl-dismiss-translation]."
   :keymap (let ((map (make-sparse-keymap)))
             (define-key map (kbd "C-c C-c") 'txl-accept-translation)
             (define-key map (kbd "C-c C-k") 'txl-dismiss-translation)
-            (define-key map (kbd "C-c C-r") 'txl-redo-transient)
+            (define-key map (kbd "C-c t") 'txl-transient-menu)
             map)
   (setq-local
    header-line-format
    (substitute-command-keys
-    " Accept translation \\[txl-accept-translation], dismiss translation \\[txl-dismiss-translation], redo translation \\[txl-redo-transient]")))
+    " Accept translation \\[txl-accept-translation], dismiss translation \\[txl-dismiss-translation], translate again \\[txl-transient-menu]")))
 
 ;; Define global minor mode.  This is needed to the toggle minor mode.
 ;;;###autoload
