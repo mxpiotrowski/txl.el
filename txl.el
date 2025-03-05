@@ -600,25 +600,27 @@ There's also no way to specify the writing style or tone.
 
 (transient-define-prefix txl-transient-menu ()
   "[TODO]"
-  [("t" "translate"
+  [["Actions"
+    ("t" "translate"
     (lambda ()
       (interactive)
       (if (string-equal (buffer-name) txl-translation-buffer-name)
        (txl-redo)
       (txl-translate-region-or-paragraph)
       ))
-    ;; (lambda ()
-    ;;   (interactive)
-    ;;   (message "Called a suffix"))
     )]
-  [:description
-   (lambda ()
-     (format "Formality: %s" (car (rassoc txl-deepl-formality txl-deepl-formality-options))))
-   ("f" "formality" txl-set-deepl-formality :transient t)]
-  [:description
-   (lambda ()
-     (format "Glossary: %s" txl-glossary))
-   ("g" "glossary" txl-set-glossary :transient t)])
+   ["asdf"
+    :description (lambda ()
+                   (format "%s %s / %s" (car txl-languages) (cdr txl-languages) (txl-guess-language)))
+    ("l" "language" txl-set-languages :transient t)]
+    [:description
+     (lambda ()
+       (format "Formality: %s" (car (rassoc txl-deepl-formality txl-deepl-formality-options))))
+     ("f" "formality" txl-set-deepl-formality :transient t)]
+    [:description
+     (lambda ()
+       (format "Glossary: %s" txl-glossary))
+     ("g" "glossary" txl-set-glossary :transient t)]])
   
 ;;;###autoload
 (defun txl-translate-region-or-paragraph (&optional roundtrip)
