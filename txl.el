@@ -443,7 +443,9 @@ go."
     (apply #'txl-translate-string text target-lang more-target-langs)))
 
 (defun txl-guess-language ()
-  "Guess the language of the region or paragraph."
+  "Guess the language of the region or paragraph.
+
+[NOTE] This function is really designed around the idea that you're only working with the languages in `txl-languages': if this is the case, then it makes sense to say, “if the detected language doesn't match the first language in `txl-languages', then it must be the second one.”  But this isn't true when dealing with more than two languages: since this function always returns one of the two languages in `txl-languages', it may be completely off when it's a third language."
   (let* ((language (guess-language-region (txl-beginning) (txl-end)))
          (language (upcase (symbol-name language))))
     (if (string-prefix-p language (symbol-name (car txl-languages)))
