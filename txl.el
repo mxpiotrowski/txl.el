@@ -359,7 +359,7 @@ go."
          (source-lang (txl-guess-string-language text))
          (glossary-id (unless (string-empty-p txl-glossary)
                         (txl-glossary-get-id-by-name txl-glossary source-lang target-lang)))
-         (request-backend 'url-retrieve)
+         ;; (request-backend 'url-retrieve) ; The re-encoding below is only necessary for `url-retrieve'.
          (response (request
                    txl-deepl-api-url
                    :type "POST"
@@ -388,10 +388,9 @@ go."
                    ))
          (data (request-response-data response))
          )
-    (let* ((data (request-response-data response))
-           (translations (cdr (assoc 'translations data)))
+    (let* ((translations (cdr (assoc 'translations data)))
            (translation (cdr (assoc 'text (aref translations 0))))
-           (translation (decode-coding-string (encode-coding-string translation 'latin-1) 'utf-8))
+           ;; (translation (decode-coding-string (encode-coding-string translation 'latin-1) 'utf-8))
            )
       (if more-target-langs
           (apply #'txl-translate-string
