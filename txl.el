@@ -408,9 +408,8 @@ go."
           (if (org-in-item-p)
               (org-beginning-of-item-list)
             (org-backward-paragraph))
-        (backward-paragraph))
-      (while (looking-at-p "[ \t\n\r]")
-        (forward-char 1))
+        (end-of-paragraph-text)
+        (start-of-paragraph-text))
       (point))))
 
 (defun txl-end ()
@@ -422,10 +421,8 @@ go."
           (if (org-in-item-p)
               (org-end-of-item-list)
             (org-forward-paragraph))
-        (forward-paragraph))
-      (while (looking-at-p "[ \t\n\r]")
-        (backward-char 1))
-      (min (point-max) (1+ (point))))))
+        (end-of-paragraph-text))
+      (min (point-max) (point)))))
 
 (defun txl-translate (target-lang &rest more-target-langs)
   "Translate region or paragraph to TARGET-LANG and return translation.
